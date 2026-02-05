@@ -1,0 +1,97 @@
+# Docker Compose for serving GLM-4.7-Flash-FP8-Dynamic via vLLM (ROCm / RX 9070 XT)
+# with an Open WebUI frontend.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.rocm.gfx1201.yml up --build
+#
+# The first run will:
+#   1. Download the model from HuggingFace (~5 GB)
+#   2. Build vLLM from source targeting gfx1201 (takes a while on first build)
+#   3. Start the vLLM OpenAI-compatible server on port 8001
+#   4. Start Open WebUI on http://localhost:3000
+#
+# To pass a HuggingFace token for gated models, set HF_TOKEN in your environment
+# or in a .env file next to this compose file.
+
+services:
+  model-downloader:
+    image: python:3.12-slim
+    container_name: model-downloader
+    volumes:
+      - vllm-cache:/root/.cache/huggingface
+    environment:
+      - HF_HUB_ENABLE_HF_TRANSFER=1
+      - HF_TOKEN=${HF_TOKEN:-}
+    command:
+      - bash
+      - -c
+      - |
+        pip install -q huggingface_hub hf_transfer
+        echo "Downloading unsloth/GLM-4.7-Flash-FP8-Dynamic..."
+        huggingface-cli download unsloth/GLM-4.7-Flash-FP8-Dynamic
+        echo "Download complete."
+
+  vllm:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rocm.gfx1201
+    container_name: vllm-glm
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    volumes:
+      - vllm-cache:/root/.cache/huggingface
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+    command: >-
+      serve unsloth/GLM-4.7-Flash-FP8-Dynamic
+        --served-model-name unsloth/GLM-4.7-Flash
+        --tensor-parallel-size 1
+        --tool-call-parser glm47
+        --reasoning-parser glm45
+        --enable-auto-tool-choice
+        --dtype bfloat16
+        --seed 3407
+        --gpu-memory-utilization 0.95
+        --max_num_batched_tokens 16384
+        --port 8001
+        --kv-cache-dtype fp8
+    ports:
+      - "8001:8001"
+    networks:
+      - common-net
+    ipc: host
+    shm_size: 8g
+    tty: true
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: open-webui
+    depends_on:
+      - vllm
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui:/app/backend/data
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm:8001/v1
+      - OPENAI_API_KEY=not-needed
+      - AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST=30
+    networks:
+      - common-net
+
+networks:
+  common-net:
+
+volumes:
+  open-webui:
+  vllm-cache:
