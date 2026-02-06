@@ -55,6 +55,10 @@ RUN apt-get update -q -y && apt-get install -q -y \
     apt-transport-https ca-certificates wget curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Ubuntu 24.04 marks system Python as externally-managed (PEP 668).
+# Remove the marker so pip/uv can install packages system-wide in the container.
+RUN rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED
+
 RUN python3 -m pip install --upgrade pip
 
 # Install uv
