@@ -55,9 +55,13 @@ RUN apt-get update -q -y && apt-get install -q -y \
     apt-transport-https ca-certificates wget curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Ubuntu 24.04 marks system Python as externally-managed (PEP 668).
-# Remove the marker so pip/uv can install packages system-wide in the container.
-RUN rm -f /usr/lib/python3.12/EXTERNALLY-MANAGED
+# The base image uses a virtualenv at /opt/venv (python3/pip already point there).
+# Remove direct_url.json from torch packages so pip doesn't try to re-download
+# from the original local wheel paths (which don't exist in our build context).
+RUN find /opt/venv/lib -path "*/torch*.dist-info/direct_url.json" -delete 2>/dev/null; \
+    find /opt/venv/lib -path "*/triton*.dist-info/direct_url.json" -delete 2>/dev/null; \
+    find /opt/venv/lib -path "*/pytorch*.dist-info/direct_url.json" -delete 2>/dev/null; \
+    true
 
 RUN python3 -m pip install --upgrade pip
 
@@ -67,8 +71,8 @@ ENV UV_HTTP_TIMEOUT=500
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_LINK_MODE=copy
 
-# Freeze the base image's ROCm PyTorch/Triton packages into a constraints file.
-# This prevents uv/pip from replacing ROCm builds with CUDA builds from PyPI.
+# Freeze the base image's ROCm PyTorch/Triton versions into a constraints file.
+# This prevents pip/uv from replacing ROCm builds with CUDA builds from PyPI.
 RUN pip freeze | grep -iE '^(torch|torchvision|torchaudio|triton|pytorch-triton)' \
     > /etc/rocm-torch-constraints.txt \
     && echo "--- ROCm PyTorch constraints ---" \
@@ -97,27 +101,27 @@ FROM base AS final
 RUN python3 -m pip install --upgrade pip && rm -rf /var/lib/apt/lists/*
 
 # Install huggingface CLI for model downloads
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -c /etc/rocm-torch-constraints.txt --upgrade huggingface-hub[cli]
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -c /etc/rocm-torch-constraints.txt --upgrade huggingface-hub[cli]
 
 # Install vLLM wheel and ROCm requirements, preserving ROCm PyTorch via constraints
 ARG COMMON_WORKDIR
 RUN --mount=type=bind,from=build_vllm,src=${COMMON_WORKDIR}/vllm/dist,target=/install/dist \
     --mount=type=bind,from=build_vllm,src=${COMMON_WORKDIR}/vllm/requirements,target=/install/requirements \
-    --mount=type=cache,target=/root/.cache/uv \
+    --mount=type=cache,target=/root/.cache/pip \
     cd /install \
-    && uv pip install --system -c /etc/rocm-torch-constraints.txt -r requirements/rocm.txt \
+    && pip install -c /etc/rocm-torch-constraints.txt -r requirements/rocm.txt \
     && pip uninstall -y vllm \
-    && uv pip install --system --no-deps dist/*.whl
+    && pip install --no-deps dist/*.whl
 
 # Install nightly transformers (required for GLM-4.7-Flash support)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -c /etc/rocm-torch-constraints.txt --upgrade --force-reinstall \
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -c /etc/rocm-torch-constraints.txt --upgrade --force-reinstall \
         "transformers @ git+https://github.com/huggingface/transformers.git"
 
 # Install numba (required by vLLM ROCm for N-gram speculative decoding)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv pip install --system -c /etc/rocm-torch-constraints.txt --force-reinstall numba
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install -c /etc/rocm-torch-constraints.txt --force-reinstall numba
 
 # Copy benchmarks and examples for convenience
 COPY --from=build_vllm ${COMMON_WORKDIR}/vllm/benchmarks ${COMMON_WORKDIR}/vllm/benchmarks
