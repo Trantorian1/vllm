@@ -71,9 +71,9 @@ ENV UV_LINK_MODE=copy
 # wheels from repo.radeon.com which include gfx1201 support.
 ARG AMD_ROCM_WHEELS=https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2
 RUN pip install --force-reinstall \
-    ${AMD_ROCM_WHEELS}/torch-2.9.1+rocm7.2.0-cp312-cp312-linux_x86_64.whl \
-    ${AMD_ROCM_WHEELS}/torchvision-0.24.0+rocm7.2.0-cp312-cp312-linux_x86_64.whl \
-    ${AMD_ROCM_WHEELS}/torchaudio-2.9.0+rocm7.2.0-cp312-cp312-linux_x86_64.whl
+    ${AMD_ROCM_WHEELS}/torch-2.9.1+rocm7.2.0.lw.git7e1940d4-cp312-cp312-linux_x86_64.whl \
+    ${AMD_ROCM_WHEELS}/torchvision-0.24.0+rocm7.2.0.gitb919bd0c-cp312-cp312-linux_x86_64.whl \
+    ${AMD_ROCM_WHEELS}/torchaudio-2.9.0+rocm7.2.0.gite3c6ee2b-cp312-cp312-linux_x86_64.whl
 
 # Freeze the newly-installed ROCm PyTorch versions into a constraints file.
 # This prevents pip from replacing ROCm builds with CUDA builds from PyPI.
