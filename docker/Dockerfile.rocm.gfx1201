@@ -31,17 +31,18 @@
 #           --kv-cache-dtype fp8
 #
 # Notes:
-#   - The base image rocm/vllm-dev:base (ROCm 7.0) already includes PyTorch, Triton,
-#     Flash Attention, AITER, and MORI pre-built with gfx1201 in the target list.
+#   - Base image: rocm/vllm-dev RDNA ("navi") image with ROCm 7.2, PyTorch 2.9,
+#     Python 3.12 — specifically built for RDNA3/RDNA4 consumer GPUs.
+#     ROCm 7.0 has known kernel execution hangs on gfx12; 7.2 fixes these.
 #   - AITER and MORI only have kernels for CDNA (gfx942/gfx950), not RDNA4.
 #     On RDNA4, vLLM uses Triton-based Flash Attention automatically.
 #   - FP8 (OCP format) is supported on gfx12 architectures.
-#   - Host system requires ROCm 7.0+ drivers. ROCm 7.0.2+ recommended for RDNA4.
-#   - --enforce-eager is required on RDNA4: torch.compile + CUDAGraph capture
-#     hangs indefinitely on gfx1201. This disables both and uses eager execution.
+#   - Host system requires ROCm 7.2+ drivers for best RDNA4 support.
+#   - --enforce-eager is recommended on RDNA4: torch.compile + CUDAGraph capture
+#     may not yet be stable on gfx1201.
 
 ARG COMMON_WORKDIR=/app
-ARG BASE_IMAGE=rocm/vllm-dev:base
+ARG BASE_IMAGE=rocm/vllm-dev:rocm7.2_navi_ubuntu24.04_py3.12_pytorch_2.9_vllm_0.14.0rc0
 
 # ---- Base stage ----
 FROM ${BASE_IMAGE} AS base
@@ -70,6 +71,9 @@ FROM base AS build_vllm
 
 COPY ./ vllm/
 
+# Remove the pre-installed vLLM from the base image before building ours
+RUN pip uninstall -y vllm || true
+
 RUN cd vllm \
     && python3 -m pip install -r requirements/rocm.txt \
     && python3 setup.py clean --all \
@@ -84,7 +88,7 @@ RUN python3 -m pip install --upgrade pip && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --upgrade huggingface-hub[cli]
 
-# Install the vLLM wheel and ROCm requirements
+# Remove pre-installed vLLM, install our build and ROCm requirements
 ARG COMMON_WORKDIR
 RUN --mount=type=bind,from=build_vllm,src=${COMMON_WORKDIR}/vllm/dist,target=/install/dist \
     --mount=type=bind,from=build_vllm,src=${COMMON_WORKDIR}/vllm/requirements,target=/install/requirements \
