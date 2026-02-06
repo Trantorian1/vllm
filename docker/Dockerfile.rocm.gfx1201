@@ -31,6 +31,10 @@
 #           --kv-cache-dtype fp8
 #
 # Notes:
+#   - HOST PREREQUISITE: CWSR must be disabled on the host system to prevent GPU
+#     hangs on gfx12 architectures (ROCm/ROCm#5590). Add to kernel boot params:
+#       amdgpu.cwsr_enable=0
+#     Verify with: cat /sys/module/amdgpu/parameters/cwsr_enable  (should be 0)
 #   - Base image: rocm/vllm-dev RDNA ("navi") image provides ROCm 7.2 runtime,
 #     Triton, and other ROCm libraries. However, its pre-installed PyTorch is
 #     compiled for gfx1150/gfx1151 (Strix Point APU), NOT gfx1201 (RX 9070 XT).
