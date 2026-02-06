@@ -31,6 +31,39 @@ services:
         huggingface-cli download unsloth/GLM-4.7-Flash-FP8-Dynamic
         echo "Download complete."
 
+  # Smoke test: small unquantized model to verify gfx1201 works at all.
+  # Once this boots successfully, stop it and start vllm-glm instead.
+  #   docker compose -f docker/docker-compose.rocm.gfx1201.yml up vllm-test
+  vllm-test:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.rocm.gfx1201
+    container_name: vllm-test
+    profiles: ["test"]
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    group_add:
+      - video
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HIP_VISIBLE_DEVICES=0
+      - VLLM_NO_USAGE_STATS=1
+      - VLLM_LOGGING_LEVEL=DEBUG
+    command: >-
+      serve Qwen/Qwen3-0.6B
+        --enforce-eager
+        --dtype bfloat16
+        --max-model-len 1024
+        --port 8001
+    ports:
+      - "8001:8001"
+    ipc: host
+    tty: true
+
   vllm:
     build:
       context: ..
