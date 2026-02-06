@@ -53,6 +53,7 @@ services:
     environment:
       - HIP_VISIBLE_DEVICES=0
       - VLLM_NO_USAGE_STATS=1
+      - VLLM_LOGGING_LEVEL=DEBUG
     command: >-
       serve unsloth/GLM-4.7-Flash-FP8-Dynamic
         --served-model-name unsloth/GLM-4.7-Flash
@@ -64,7 +65,8 @@ services:
         --dtype bfloat16
         --seed 3407
         --gpu-memory-utilization 0.95
-        --max_num_batched_tokens 16384
+        --max-model-len 8192
+        --max_num_batched_tokens 8192
         --port 8001
         --kv-cache-dtype fp8
     ports:
