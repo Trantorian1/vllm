@@ -31,9 +31,11 @@
 #           --kv-cache-dtype fp8
 #
 # Notes:
-#   - Base image: rocm/vllm-dev RDNA ("navi") image with ROCm 7.2, PyTorch 2.9,
-#     Python 3.12 — specifically built for RDNA3/RDNA4 consumer GPUs.
-#     ROCm 7.0 has known kernel execution hangs on gfx12; 7.2 fixes these.
+#   - Base image: rocm/vllm-dev RDNA ("navi") image provides ROCm 7.2 runtime,
+#     Triton, and other ROCm libraries. However, its pre-installed PyTorch is
+#     compiled for gfx1150/gfx1151 (Strix Point APU), NOT gfx1201 (RX 9070 XT).
+#     We replace PyTorch with AMD's official ROCm 7.2 wheels from repo.radeon.com
+#     which include gfx1201 support.
 #   - AITER and MORI only have kernels for CDNA (gfx942/gfx950), not RDNA4.
 #     On RDNA4, vLLM uses Triton-based Flash Attention automatically.
 #   - FP8 (OCP format) is supported on gfx12 architectures.
@@ -56,13 +58,6 @@ RUN apt-get update -q -y && apt-get install -q -y \
     && rm -rf /var/lib/apt/lists/*
 
 # The base image uses a virtualenv at /opt/venv (python3/pip already point there).
-# Remove direct_url.json from torch packages so pip doesn't try to re-download
-# from the original local wheel paths (which don't exist in our build context).
-RUN find /opt/venv/lib -path "*/torch*.dist-info/direct_url.json" -delete 2>/dev/null; \
-    find /opt/venv/lib -path "*/triton*.dist-info/direct_url.json" -delete 2>/dev/null; \
-    find /opt/venv/lib -path "*/pytorch*.dist-info/direct_url.json" -delete 2>/dev/null; \
-    true
-
 RUN python3 -m pip install --upgrade pip
 
 # Install uv
@@ -71,8 +66,17 @@ ENV UV_HTTP_TIMEOUT=500
 ENV UV_INDEX_STRATEGY="unsafe-best-match"
 ENV UV_LINK_MODE=copy
 
-# Freeze the base image's ROCm PyTorch/Triton versions into a constraints file.
-# This prevents pip/uv from replacing ROCm builds with CUDA builds from PyPI.
+# CRITICAL: The navi base image's PyTorch is compiled for gfx1150/gfx1151 (Strix
+# Point APU), NOT gfx1201 (RX 9070 XT). Replace with AMD's official ROCm 7.2
+# wheels from repo.radeon.com which include gfx1201 support.
+ARG AMD_ROCM_WHEELS=https://repo.radeon.com/rocm/manylinux/rocm-rel-7.2
+RUN pip install --force-reinstall \
+    ${AMD_ROCM_WHEELS}/torch-2.9.1+rocm7.2.0-cp312-cp312-linux_x86_64.whl \
+    ${AMD_ROCM_WHEELS}/torchvision-0.24.0+rocm7.2.0-cp312-cp312-linux_x86_64.whl \
+    ${AMD_ROCM_WHEELS}/torchaudio-2.9.0+rocm7.2.0-cp312-cp312-linux_x86_64.whl
+
+# Freeze the newly-installed ROCm PyTorch versions into a constraints file.
+# This prevents pip from replacing ROCm builds with CUDA builds from PyPI.
 RUN pip freeze | grep -iE '^(torch|torchvision|torchaudio|triton|pytorch-triton)' \
     > /etc/rocm-torch-constraints.txt \
     && echo "--- ROCm PyTorch constraints ---" \
@@ -132,6 +136,11 @@ ENV TOKENIZERS_PARALLELISM=false
 ENV SAFETENSORS_FAST_GPU=1
 ENV HIP_FORCE_DEV_KERNARG=1
 ENV VLLM_USE_TRITON_FLASH_ATTN=1
+# Disable prefill-decode attention split — reported to cause hangs on consumer
+# AMD GPUs (ROCm/ROCm#5590).
+ENV VLLM_V1_USE_PREFILL_DECODE_ATTENTION=0
+# AITER kernels are CDNA-only (gfx942/gfx950), ensure disabled on RDNA4.
+ENV VLLM_ROCM_USE_AITER=0
 
 # Workaround for ROCm profiler limits
 RUN echo "ROCTRACER_MAX_EVENTS=10000000" > ${COMMON_WORKDIR}/libkineto.conf

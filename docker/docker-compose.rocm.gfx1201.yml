@@ -53,6 +53,8 @@ services:
       - HIP_VISIBLE_DEVICES=0
       - VLLM_NO_USAGE_STATS=1
       - VLLM_LOGGING_LEVEL=DEBUG
+      - VLLM_V1_USE_PREFILL_DECODE_ATTENTION=0
+      - VLLM_ROCM_USE_AITER=0
     command: >-
       serve Qwen/Qwen3-0.6B
         --enforce-eager
@@ -87,6 +89,8 @@ services:
       - HIP_VISIBLE_DEVICES=0
       - VLLM_NO_USAGE_STATS=1
       - VLLM_LOGGING_LEVEL=DEBUG
+      - VLLM_V1_USE_PREFILL_DECODE_ATTENTION=0
+      - VLLM_ROCM_USE_AITER=0
     command: >-
       serve unsloth/GLM-4.7-Flash-FP8-Dynamic
         --served-model-name unsloth/GLM-4.7-Flash
