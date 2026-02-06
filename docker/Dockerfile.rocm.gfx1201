@@ -21,6 +21,7 @@
 #           --tool-call-parser glm47 \
 #           --reasoning-parser glm45 \
 #           --enable-auto-tool-choice \
+#           --enforce-eager \
 #           --dtype bfloat16 \
 #           --seed 3407 \
 #           --gpu-memory-utilization 0.95 \
@@ -35,6 +36,8 @@
 #     On RDNA4, vLLM uses Triton-based Flash Attention automatically.
 #   - FP8 (OCP format) is supported on gfx12 architectures.
 #   - Host system requires ROCm 7.0+ drivers. ROCm 7.0.2+ recommended for RDNA4.
+#   - --enforce-eager is required on RDNA4: torch.compile + CUDAGraph capture
+#     hangs indefinitely on gfx1201. This disables both and uses eager execution.
 
 ARG COMMON_WORKDIR=/app
 ARG BASE_IMAGE=rocm/vllm-dev:base

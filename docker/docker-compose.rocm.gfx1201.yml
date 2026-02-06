@@ -8,9 +8,6 @@
 #   1. Download the model from HuggingFace (~5 GB)
 #   2. Build vLLM from source targeting gfx1201 (takes a while on first build)
 #   3. Start the vLLM OpenAI-compatible server on port 8001
-#     NOTE: First startup JIT-compiles Triton kernels for gfx1201 which can
-#     take 30-60+ minutes. Compiled kernels are cached in the triton-cache
-#     volume so subsequent starts are fast (seconds).
 #   4. Start Open WebUI on http://localhost:3000
 #
 # To pass a HuggingFace token for gated models, set HF_TOKEN in your environment
@@ -53,13 +50,8 @@ services:
       - seccomp=unconfined
     volumes:
       - vllm-cache:/root/.cache/huggingface
-      - triton-cache:/root/.triton
     environment:
       - HIP_VISIBLE_DEVICES=0
-      # Persist Triton JIT cache across container restarts
-      - TRITON_CACHE_DIR=/root/.triton
-      # Show what vLLM is doing during the long first-start compilation
-      - VLLM_LOGGING_LEVEL=INFO
       - VLLM_NO_USAGE_STATS=1
     command: >-
       serve unsloth/GLM-4.7-Flash-FP8-Dynamic
@@ -68,6 +60,7 @@ services:
         --tool-call-parser glm47
         --reasoning-parser glm45
         --enable-auto-tool-choice
+        --enforce-eager
         --dtype bfloat16
         --seed 3407
         --gpu-memory-utilization 0.95
@@ -104,4 +97,3 @@ networks:
 volumes:
   open-webui:
   vllm-cache:
-  triton-cache:
