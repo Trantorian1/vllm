@@ -42,7 +42,9 @@
 #     which include gfx1201 support.
 #   - AITER and MORI only have kernels for CDNA (gfx942/gfx950), not RDNA4.
 #     On RDNA4, vLLM uses Triton-based Flash Attention automatically.
-#   - FP8 (OCP format) is supported on gfx12 architectures.
+#   - FP8 weights (OCP format) are supported on gfx12 architectures.
+#     However, --kv-cache-dtype fp8 is NOT yet supported with TritonMLA (used by
+#     MLA-based models like GLM-4.7-Flash / DeepSeek V2). Omit that flag for now.
 #   - Host system requires ROCm 7.2+ drivers for best RDNA4 support.
 #   - --enforce-eager is recommended on RDNA4: torch.compile + CUDAGraph capture
 #     may not yet be stable on gfx1201.
