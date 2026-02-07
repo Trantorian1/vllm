@@ -1,11 +1,11 @@
-# Docker Compose for serving GLM-4.7-Flash-FP8-Dynamic via vLLM (ROCm / RX 9070 XT)
+# Docker Compose for serving GLM-4.7-Flash (BF16) via vLLM (ROCm / RX 9070 XT)
 # with an Open WebUI frontend.
 #
 # Usage:
 #   docker compose -f docker/docker-compose.rocm.gfx1201.yml up --build
 #
 # The first run will:
-#   1. Download the model from HuggingFace (~5 GB)
+#   1. Download the model from HuggingFace (~60 GB BF16)
 #   2. Build vLLM from source targeting gfx1201 (takes a while on first build)
 #   3. Start the vLLM OpenAI-compatible server on port 8001
 #   4. Start Open WebUI on http://localhost:3000
@@ -27,8 +27,8 @@ services:
       - -c
       - |
         pip install -q huggingface_hub hf_transfer
-        echo "Downloading unsloth/GLM-4.7-Flash-FP8-Dynamic..."
-        huggingface-cli download unsloth/GLM-4.7-Flash-FP8-Dynamic
+        echo "Downloading zai-org/GLM-4.7-Flash..."
+        huggingface-cli download zai-org/GLM-4.7-Flash
         echo "Download complete."
 
   # Smoke test: small unquantized model to verify gfx1201 works at all.
@@ -92,8 +92,8 @@ services:
       - VLLM_V1_USE_PREFILL_DECODE_ATTENTION=0
       - VLLM_ROCM_USE_AITER=0
     command: >-
-      serve unsloth/GLM-4.7-Flash-FP8-Dynamic
-        --served-model-name unsloth/GLM-4.7-Flash
+      serve zai-org/GLM-4.7-Flash
+        --served-model-name GLM-4.7-Flash
         --tensor-parallel-size 1
         --tool-call-parser glm47
         --reasoning-parser glm45
